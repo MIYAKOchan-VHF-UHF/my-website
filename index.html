@@ -103,22 +103,22 @@
       <p class="note">宮古島からの対流圏ダクトの目安です。詳細はHepburn マップ（Far East）を見てください。</p>
       <div class="band">
         <div class="band-h"><p><strong>430MHz</strong></p><p class="sub">アマチュア無線 FM</p></div>
-        <div class="row"><div><p><strong>沖縄本島</strong></p><p class="sub" id="cmt-430-0">計算中…</p></div><p class="pct" id="pct-430-0">…</p></div>
-        <div class="row"><div><p><strong>石垣島</strong></p><p class="sub" id="cmt-430-1">計算中…</p></div><p class="pct" id="pct-430-1">…</p></div>
-        <div class="row"><div><p><strong>九州方面</strong></p><p class="sub" id="cmt-430-2">計算中…</p></div><p class="pct" id="pct-430-2">…</p></div>
+        <div class="row"><div><p><strong>沖縄本島</strong></p><p class="sub" id="cmt-430-0">かなり厳しい</p></div><p class="pct" id="pct-430-0">8%</p></div>
+        <div class="row"><div><p><strong>石垣島</strong></p><p class="sub" id="cmt-430-1">ほぼ期待できない</p></div><p class="pct" id="pct-430-1">6%</p></div>
+        <div class="row"><div><p><strong>九州方面</strong></p><p class="sub" id="cmt-430-2">ほぼ繋がらない</p></div><p class="pct" id="pct-430-2">3%</p></div>
       </div>
       <div class="band">
         <div class="band-h"><p><strong>351MHz</strong></p><p class="sub">デジタル簡易無線</p></div>
-        <div class="row"><div><p><strong>沖縄本島</strong></p><p class="sub" id="cmt-351-0">計算中…</p></div><p class="pct" id="pct-351-0">…</p></div>
-        <div class="row"><div><p><strong>石垣島</strong></p><p class="sub" id="cmt-351-1">計算中…</p></div><p class="pct" id="pct-351-1">…</p></div>
-        <div class="row"><div><p><strong>九州方面</strong></p><p class="sub" id="cmt-351-2">計算中…</p></div><p class="pct" id="pct-351-2">…</p></div>
+        <div class="row"><div><p><strong>沖縄本島</strong></p><p class="sub" id="cmt-351-0">かなり厳しい</p></div><p class="pct" id="pct-351-0">10%</p></div>
+        <div class="row"><div><p><strong>石垣島</strong></p><p class="sub" id="cmt-351-1">ほぼ期待できない</p></div><p class="pct" id="pct-351-1">7%</p></div>
+        <div class="row"><div><p><strong>九州方面</strong></p><p class="sub" id="cmt-351-2">ほぼ繋がらない</p></div><p class="pct" id="pct-351-2">4%</p></div>
       </div>
     </section>
     <section class="card pad">
       <h2>みやこちゃんの一言アドバイス</h2>
       <div class="advice">
         今この時間は<br>
-        <span class="hot" id="advice-name">計算中…</span> が相対的にマシかも…！<br>
+        <span class="hot" id="advice-name">デジタル簡易無線 351MHz</span> が相対的にマシかも…！<br>
         <span class="one" id="advice-line">条件は厳しめだけど、近場を狙ってみてね♪</span>
       </div>
       <p class="time">表示時刻：<span id="clock">読み込み中…</span>（日本時間）</p>
@@ -172,25 +172,10 @@ const PATHS = [
   { area: "九州方面", lat: 31.596, lon: 130.557, factor: 0.4, far: true },
 ];
 
-const MIYAKO = { lat: 24.805, lon: 125.281 };
-
 const BANDS = [
   { id: "430", name: "430MHz", sub: "アマチュア無線 FM", mhz: 430 },
   { id: "351", name: "351MHz", sub: "デジタル簡易無線", mhz: 351 },
 ];
-
-function thetaC(tempC, hPa) {
-  return (tempC + 273.15) * Math.pow(1000 / hPa, 0.2854) - 273.15;
-}
-
-function ductIndex(sample) {
-  const surface = thetaC(sample.t2, 1008);
-  const mid = thetaC(sample.t925, 925);
-  const upper = thetaC(sample.t850, 850);
-  const stability = Math.max(mid - surface, upper - surface);
-  const dryAloft = sample.rh2 - Math.min(sample.rh925, sample.rh850);
-  return Math.max(0, Math.min(10, stability * 0.9 + dryAloft * 0.07));
-}
 
 function bandFactor(mhz, index) {
   if (index >= 5) return mhz === 430 ? 1.05 : 0.98;
@@ -235,51 +220,13 @@ function build(indexes) {
 function localForecast(date = new Date()) {
   const jst = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
   const month = jst.getMonth() + 1;
+  const day = jst.getDate();
   const hour = jst.getHours();
   const season = 0.45 + 0.55 * Math.cos(((month - 9) / 6) * Math.PI);
+  const dayWave = 0.85 + 0.15 * Math.sin(((day + month) / 31) * Math.PI * 2);
   const night = Math.max(Math.exp(-((hour - 6) ** 2) / 20), Math.exp(-((hour - 22) ** 2) / 18));
-  const base = Math.max(0, Math.min(4, season * (0.35 + night) * 3));
-  return build(PATHS.map(() => base));
-}
-
-export async function loadForecast(date = new Date()) {
-  const lats = [MIYAKO.lat, ...PATHS.map((path) => path.lat)].join(",");
-  const lons = [MIYAKO.lon, ...PATHS.map((path) => path.lon)].join(",");
-  const url =
-    "https://api.open-meteo.com/v1/forecast?latitude=" +
-    lats +
-    "&longitude=" +
-    lons +
-    "&hourly=temperature_2m,relative_humidity_2m,temperature_925hPa,relative_humidity_925hPa,temperature_850hPa,relative_humidity_850hPa&timezone=Asia%2FTokyo&forecast_hours=6";
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(String(res.status));
-  const data = await res.json();
-  const list = Array.isArray(data) ? data : [data];
-  const jst = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
-  const stamp =
-    jst.getFullYear() +
-    "-" +
-    String(jst.getMonth() + 1).padStart(2, "0") +
-    "-" +
-    String(jst.getDate()).padStart(2, "0") +
-    "T" +
-    String(jst.getHours()).padStart(2, "0") +
-    ":00";
-  const indexes = list.map((loc) => {
-    const hourly = loc.hourly;
-    let at = hourly.time.indexOf(stamp);
-    if (at < 0) at = 0;
-    return ductIndex({
-      t2: hourly.temperature_2m[at],
-      rh2: hourly.relative_humidity_2m[at],
-      t925: hourly.temperature_925hPa[at],
-      rh925: hourly.relative_humidity_925hPa[at],
-      t850: hourly.temperature_850hPa[at],
-      rh850: hourly.relative_humidity_850hPa[at],
-    });
-  });
-  const source = indexes[0] ?? 0;
-  return build(indexes.slice(1).map((dest) => Math.min(source, dest)));
+  const base = Math.max(0, Math.min(4, season * dayWave * (0.35 + night) * 3));
+  return build(PATHS.map((path, i) => base * (1 - i * 0.08)));
 }
 
 function applyForecast(fc) {
@@ -297,7 +244,6 @@ function applyForecast(fc) {
   document.getElementById("advice-line").textContent = fc.adviceLine;
 }
 applyForecast(localForecast());
-loadForecast().then(applyForecast).catch(function () {});
 (function () {
   var LUCKY = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   var reasons = {
